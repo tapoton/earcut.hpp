@@ -58,6 +58,7 @@ private:
     template <typename Ring> Node* linkedList(const Ring& points, const bool clockwise);
     Node* filterPoints(Node* start, Node* end = nullptr);
     void earcutLinked(Node* ear, int pass = 0);
+    bool isReflex(Node* p);
     bool isEar(Node* ear);
     bool isEarHashed(Node* ear);
     Node* cureLocalIntersections(Node* start);
@@ -72,6 +73,7 @@ private:
     bool pointInTriangle(double ax, double ay, double bx, double by, double cx, double cy, double px, double py) const;
     bool isValidDiagonal(Node* a, Node* b);
     double area(const Node* p, const Node* q, const Node* r) const;
+    double dotProd(const Node* p, const Node* q, const Node* r) const;
     bool equals(const Node* p1, const Node* p2);
     bool intersects(const Node* p1, const Node* q1, const Node* p2, const Node* q2);
     bool intersectsPolygon(const Node* a, const Node* b);
@@ -298,21 +300,46 @@ void Earcut<N>::earcutLinked(Node* ear, int pass) {
     }
 }
 
+template <typename N>
+bool Earcut<N>::isReflex(Node* p) {
+    
+    const Node* a = p->prev;
+    const Node* b = p;
+    const Node* c = p->next;
+    
+    double dot = dotProd(a, b, c);
+    double det = area(a, b, c);
+    double angle = atan2(det, dot);
+    
+    // small cheat here to avoid mistakes for 180º angles
+    // double is too inaccurate type
+    return angle >= -0.01;
+}
+    
+
 // check whether a polygon node forms a valid ear with adjacent nodes
 template <typename N>
 bool Earcut<N>::isEar(Node* ear) {
+    
+    if (isReflex(ear)) return false; // reflex, can't be an ear
+    
     const Node* a = ear->prev;
     const Node* b = ear;
     const Node* c = ear->next;
-
-    if (area(a, b, c) >= 0) return false; // reflex, can't be an ear
-
+    
     // now make sure we don't have other points inside the potential ear
     Node* p = ear->next->next;
 
     while (p != ear->prev) {
-        if (pointInTriangle(a->x, a->y, b->x, b->y, c->x, c->y, p->x, p->y) &&
-            area(p->prev, p, p->next) >= 0) return false;
+        
+        bool inTriangle = pointInTriangle(a->x, a->y,
+                                          b->x, b->y,
+                                          c->x, c->y,
+                                          p->x, p->y);
+        
+        if (inTriangle && isReflex(p)) {
+            return false;
+        }
         p = p->next;
     }
 
@@ -653,6 +680,12 @@ bool Earcut<N>::isValidDiagonal(Node* a, Node* b) {
 template <typename N>
 double Earcut<N>::area(const Node* p, const Node* q, const Node* r) const {
     return (q->y - p->y) * (r->x - q->x) - (q->x - p->x) * (r->y - q->y);
+}
+
+// dot product of vectors pq and qr
+template <typename N>
+double Earcut<N>::dotProd(const Node* p, const Node* q, const Node* r) const {
+    return (q->x - p->x) * (r->x - q->x) + (q->y - p->y) * (r->y - q->y);
 }
 
 // check if two points are equal
